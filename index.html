@@ -145,10 +145,15 @@
     log(`پلی‌لیست ساخته شد ✅ → <a class="link" href="${j2.playlist_url}" target="_blank">باز کردن در اسپاتیفای</a> ( ${j2.added} ترک )`);
   });
 
+  // Always check Spotify auth state on load
+window.addEventListener('load', () => {
+  checkAuth();
+
   if (window.location.hash.includes('spotify=ok')) {
-    history.replaceState({}, document.title, '/');
-    checkAuth();
+      history.replaceState({}, document.title, '/');
   }
+});
+
 </script>
 
 </body>
