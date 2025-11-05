@@ -3,320 +3,82 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>AI → Spotify Playlist</title>
+  <title>🎵 AI Playlist Generator</title>
 
-  <!-- فونت اسپاتیفای مانند -->
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap" rel="stylesheet"/>
-
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#000">
   <style>
-    :root {
-      --bg: #0b0c10;
-      --surface: #111319;
-      --neon-yellow: #ffe347;
-      --neon-teal: #4fffe2;
-      --text: #f2f2f2;
-      --subtext: #b7b7b7;
-      --radius: 14px;
+    @font-face {
+      font-family: "IRANSans";
+      src: url("https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.003/fonts/webfonts/Vazirmatn-Regular.woff2");
     }
-
-    * {
-      box-sizing: border-box;
-      font-family: "Plus Jakarta Sans", sans-serif;
-    }
-
     body {
-      background: radial-gradient(circle at 20% 10%, #1b1e24 0%, #0b0c10 70%);
-      margin: 0;
-      padding: 0;
-      color: var(--text);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      overflow-x: hidden;
+      margin:0; font-family: IRANSans, sans-serif;
+      background:#0d0f12; color:#e6e6e6; display:flex;
+      justify-content:center; align-items:center;
+      min-height:100vh; padding:20px;
     }
-
     .card {
-      width: min(760px, 94vw);
-      background: rgba(15, 17, 22, 0.8);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: var(--radius);
-      padding: 26px;
-      backdrop-filter: blur(14px);
-      box-shadow: 0 0 25px rgba(255, 230, 0, 0.16);
-      animation: cardFade .6s ease-out;
+      width:min(720px,95vw);
+      background:#111318;
+      border:1px solid #2a2f37;
+      border-radius:20px; padding:24px;
+      box-shadow:0 8px 30px rgba(0,0,0,.35);
+      backdrop-filter: blur(6px);
     }
-
-    @keyframes cardFade {
-      from { opacity: 0; transform: scale(.94); }
-      to   { opacity: 1; transform: scale(1); }
-    }
-
-    h2 {
-      margin-top: 0;
-      font-weight: 700;
-      background: linear-gradient(90deg, var(--neon-yellow), var(--neon-teal));
-      -webkit-background-clip: text;
-      color: transparent;
-      font-size: 26px;
-    }
-
+    h2 { margin-top:0; font-size:22px; }
     textarea, input {
-      width: 100%;
-      background: #0c0d11;
-      border: 1px solid #282c36;
-      border-radius: var(--radius);
-      padding: 14px;
-      color: var(--text);
-      font-size: 15px;
-      transition: .2s;
+      width:100%; background:#0b0d11; color:#eee;
+      border:1px solid #333a47; border-radius:12px;
+      padding:12px; font-size:15px;
+      transition:.25s;
     }
-
-    textarea:focus, input:focus {
-      border-color: var(--neon-teal);
-      box-shadow: 0 0 6px var(--neon-teal);
-      outline: none;
-    }
-
-    label {
-      font-size: 13px;
-      opacity: 0.75;
-      display: block;
-      margin-bottom: 6px;
-    }
-
-    .row {
-      display: flex;
-      gap: 14px;
-      flex-wrap: wrap;
-    }
-
+    input:focus, textarea:focus { outline:none; border-color:#ffc800; }
     button {
-      width: 100%;
-      padding: 14px;
-      font-size: 16px;
-      border-radius: var(--radius);
-      border: none;
-      cursor: pointer;
-      font-weight: 600;
-      color: black;
-      transition: .22s ease;
-      letter-spacing: .3px;
+      width:100%; padding:14px; font-size:16px;
+      border:none; border-radius:12px; cursor:pointer;
+      background:#ffc800; color:#000; font-weight:600;
+      transition:0.25s; margin-top:10px;
     }
-
-    #btnLogin {
-      background: #1ed760;
-      box-shadow: 0 0 10px #1ed76055;
-    }
-    #btnLogin:hover { filter: brightness(1.12); transform: translateY(-2px); }
-
-    #btnCreate {
-      background: var(--neon-yellow);
-      box-shadow: 0 0 12px #ffe34766;
-    }
-    #btnCreate:hover { filter: brightness(1.1); transform: translateY(-2px); }
-
-    #btnCreate:disabled {
-      opacity: .55;
-      cursor: not-allowed;
-      box-shadow: none;
-      transform: none;
-    }
-
-    .footer {
-      opacity: .55;
-      font-size: 12px;
-      text-align: center;
-      margin-top: 14px;
-    }
-
-    .track-list {
-      margin-top: 22px;
-      border-top: 1px solid #222;
-      padding-top: 16px;
-      max-height: 350px;
-      overflow-y: auto;
-      scrollbar-width: thin;
-      scrollbar-color: var(--neon-teal) #111;
-    }
-    .track-list::-webkit-scrollbar {
-      width: 7px;
-    }
-    .track-list::-webkit-scrollbar-thumb {
-      background: var(--neon-teal);
-      border-radius: 6px;
-    }
-
+    button:hover:not(:disabled) { filter:brightness(1.1); }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .footer { font-size:12px; opacity:.6; margin-top:15px; text-align:center; }
+    .track-list { margin-top:20px; display:grid; gap:12px; }
     .track {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 14px;
-      animation: fadeUp .4s ease;
+      display:flex; gap:12px; align-items:center;
+      background:#15171d; padding:10px; border-radius:12px;
+      border:1px solid #262a34;
     }
-
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(6px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
     .track img {
-      width: 56px;
-      height: 56px;
-      border-radius: 8px;
-      object-fit: cover;
-      box-shadow: 0 0 10px rgba(255,255,255,.14);
+      width:48px; height:48px; border-radius:8px;
+      object-fit:cover;
     }
-
-    .track-title {
-      font-size: 15px;
-      font-weight: 600;
-    }
-    .track-artist {
-      font-size: 13px;
-      color: var(--subtext);
-    }
-
-    a.link {
-      color: var(--neon-teal);
-      text-decoration: none;
-      font-weight: 600;
-    }
-    a.link:hover { color: var(--neon-yellow); }
+    .track div { font-size:14px; line-height:1.4; }
   </style>
 </head>
-
 <body>
 
-  <div class="card">
-    <h2>🎵 ساخت پلی‌لیست اسپاتیفای با هوش مصنوعی</h2>
+<div class="card">
+  <h2>🎧 ساخت پلی‌لیست اسپاتیفای با هوش مصنوعی</h2>
 
-    <div class="grid">
-      <div>
-        <label>پرامپت خود را وارد کنید:</label>
-        <textarea id="prompt" rows="4" placeholder="چی میخوای گوش بدی؟"></textarea>
-      </div>
+  <textarea id="prompt" rows="3" placeholder="چی میخوای گوش بدی؟"></textarea>
 
-      <div class="row">
-        <div style="flex:1">
-          <label>تعداد آهنگ</label>
-          <input id="count" type="number" min="1" max="100" placeholder="5" />
-        </div>
-        <div style="flex:2">
-          <label>نام پلی‌لیست</label>
-          <input id="title" type="text" placeholder="AI Playlist" />
-        </div>
-      </div>
-
-      <button id="btnLogin">۱) اتصال به اسپاتیفای</button>
-      <button id="btnCreate" disabled>۲) ساخت پلی‌لیست 🎧</button>
-
-      <div id="out" class="footer"></div>
-
-      <div id="tracks" class="track-list" style="display:none"></div>
-    </div>
-
-    <div class="footer">Add to home screen - Developer: Ali jafari</div>
+  <div style="display:flex; gap:10px; margin-top:10px;">
+    <input id="count" type="number" min="1" max="100" placeholder="تعداد ترک (پیش‌فرض ۵)">
+    <input id="title" type="text" placeholder="نام پلی‌لیست (اختیاری)">
   </div>
 
-  <!-- ⚠️ اسکریپت همانی است که داری — بدون تغییر -->
-<script>
-const API_BASE = "https://ali-gpt.jaix0989.workers.dev";
+  <button id="btnLogin">۱) اتصال به اسپاتیفای</button>
+  <button id="btnCreate" disabled>۲) ساخت پلی‌لیست</button>
 
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js');
-}
+  <div id="out" style="margin-top:12px; font-size:14px;"></div>
 
-const out = document.getElementById('out');
-function log(msg) { out.innerHTML = msg; }
+  <div id="tracks" class="track-list"></div>
 
-let accessToken = null;
-let refreshToken = null;
+  <div class="footer">add to home screen - Developer: Ali jafari</div>
+</div>
 
-// ✅ اگر از اسپاتیفای برگشتیم → توکن‌ها را از URL بخوانیم
-if (location.hash.includes("spotify_token")) {
-  const params = new URLSearchParams(location.hash.substring(1));
-  accessToken = params.get("spotify_token");
-  refreshToken = params.get("refresh");
-  localStorage.setItem("spotify_access", accessToken);
-  localStorage.setItem("spotify_refresh", refreshToken);
-  history.replaceState({}, "", "/");
-  log("✅ اسپاتیفای متصل شد! می‌تونی پلی‌لیست بسازی");
-  document.getElementById("btnCreate").disabled = false;
-} else {
-  accessToken = localStorage.getItem("spotify_access");
-  refreshToken = localStorage.getItem("spotify_refresh");
-  if (accessToken) {
-    document.getElementById("btnCreate").disabled = false;
-    log("✅ قبلاً به اسپاتیفای وصل شده‌ای. آماده‌ٔ ساخت پلی‌لیست!");
-  }
-}
-
-// ✅ مرحله ۱ — اتصال اسپاتیفای
-document.getElementById('btnLogin').addEventListener('click', () => {
-  window.location.href = `${API_BASE}/auth/login`;
-});
-
-
-// ✅ مرحله ۲ — ساخت پلی‌لیست
-document.getElementById('btnCreate').addEventListener('click', async () => {
-  if (!accessToken) return log("❌ به اسپاتیفای وصل نیستی.");
-
-  const prompt = document.getElementById('prompt').value.trim();
-  if (!prompt) return log("پرامپت خالیه!");
-
-  const count = parseInt(document.getElementById('count').value || '5', 10);
-  const title = document.getElementById('title').value.trim() || 'AI Playlist';
-
-  log("🤖 در حال درخواست از OpenAI...");
-
-  const r = await fetch(`${API_BASE}/api/create-playlist`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + accessToken
-    },
-    body: JSON.stringify({
-      prompt,
-      count,
-      title,
-      description: `Generated by AI: ${prompt}`
-    })
-  });
-
-  const j = await r.json();
-  if (!j.ok) {
-    return log("❌ خطا: " + (j.error || "failed"));
-  }
-
-  // ✅ نمایش کامل پلی‌لیست + ترک‌ها
-  let html = `
-    <div style="text-align:center">
-      <img src="${j.image}" style="width:160px;border-radius:12px" />
-      <h3>${j.name}</h3>
-      <a class="link" target="_blank" href="${j.playlist_url}">باز کردن پلی‌لیست در اسپاتیفای</a>
-      <p>${j.added} ترک اضافه شد ✅</p>
-    </div>
-    <hr>
-    <div style="display:grid;gap:10px">
-  `;
-
-  for (const t of j.tracks) {
-    html += `
-      <div style="display:flex;align-items:center;gap:12px;background:#1b1d23;padding:8px;border-radius:10px">
-        <img src="${t.cover}" style="width:50px;height:50px;border-radius:6px;">
-        <div>
-          <div><b>${t.name}</b></div>
-          <small>${t.artist}</small>
-        </div>
-      </div>
-    `;
-  }
-
-  html += "</div>";
-  out.innerHTML = html;
-});
-</script>
+<script src="app.js"></script>
 
 </body>
 </html>
