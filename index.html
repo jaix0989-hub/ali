@@ -56,103 +56,150 @@
   </div>
 
   <script>
-  const API_BASE = "https://ali-gpt.jaix0989.workers.dev";
+const API_BASE = "https://ali-gpt.jaix0989.workers.dev";
 
-  // ✅ Service Worker (PWA installability)
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js');
-  }
+// --- Local token handling ---
+let access_token = localStorage.getItem("SPOTIFY_TOKEN") || null;
+let refresh_token = localStorage.getItem("SPOTIFY_REFRESH") || null;
 
-  // ✅ OpenAI key storage
-  const openaiInput = document.getElementById('openaiKey');
-  const savedKey = localStorage.getItem('OPENAI_KEY');
-  if (savedKey) openaiInput.value = atob(savedKey);
-  openaiInput.addEventListener('change', () => {
-    localStorage.setItem('OPENAI_KEY', btoa(openaiInput.value.trim()));
-  });
+// Save OpenAI key (same as قبل)
+const keyInput = document.getElementById('openaiKey');
+const savedKey = localStorage.getItem('OPENAI_KEY');
+if (savedKey) keyInput.value = atob(savedKey);
+keyInput.addEventListener('change', () => {
+  localStorage.setItem('OPENAI_KEY', btoa(keyInput.value.trim()));
+});
 
-  const out = document.getElementById('out');
-  const btnLogin = document.getElementById('btnLogin');
-  const btnCreate = document.getElementById('btnCreate');
+// UI helpers
+const out = document.getElementById("out");
+function log(msg) { out.innerHTML = msg; }
+const btnLogin = document.getElementById("btnLogin");
+const btnCreate = document.getElementById("btnCreate");
 
-  function log(msg) { out.innerHTML = msg; }
+// ✅ Handle redirect tokens in URL after Spotify login
+(function readTokensFromURL() {
+  const hash = window.location.hash;
+  if (!hash.includes("spotify_token")) return;
+  const params = new URLSearchParams(hash.replace("#", ""));
+  access_token = params.get("spotify_token");
+  refresh_token = params.get("refresh");
+  if (access_token) localStorage.setItem("SPOTIFY_TOKEN", access_token);
+  if (refresh_token) localStorage.setItem("SPOTIFY_REFRESH", refresh_token);
+  history.replaceState({}, document.title, "/"); // clean URL
+})();
 
-  // ✅ Handle token from callback (#spotify_token=...)
-  if (location.hash.includes("spotify_token=")) {
-    const token = location.hash.split("spotify_token=")[1].split("&")[0];
-    localStorage.setItem("SPOTIFY_TOKEN", token);
-    history.replaceState({}, document.title, "/");
-  }
-
-  const storedSpotifyToken = localStorage.getItem("SPOTIFY_TOKEN");
-
-  if (storedSpotifyToken) {
-    btnCreate.disabled = false;
-    log("✅ به اسپاتیفای وصل شدی. می‌تونی پلی‌لیست بسازی!");
-  } else {
+// ✅ Check token validity by calling Spotify /me
+async function checkAuth() {
+  if (!access_token) {
+    btnCreate.disabled = true;
     log("به اسپاتیفای وصل نیستی.");
+    return;
+  }
+  const me = await fetch("https://api.spotify.com/v1/me", {
+    headers: { Authorization: "Bearer " + access_token }
+  });
+  if (me.status === 401) {
+    log("⏳ توکن منقضی شده، دارم رفرش می‌کنم...");
+    await refreshAccessToken();
+    return checkAuth();
+  }
+  const j = await me.json();
+  btnCreate.disabled = false;
+  log(`متصل شدی به <b>${j.display_name || j.id}</b> ✅`);
+}
+
+async function refreshAccessToken() {
+  if (!refresh_token) return log("⚠️ رفرش توکن نداریم، اول دوباره لاگین کن.");
+  const r = await fetch(`${API_BASE}/api/refresh`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refresh_token })
+  });
+  const j = await r.json();
+  if (!j.ok) return log("❌ خطا در رفرش توکن: " + j.error);
+  access_token = j.access_token;
+  localStorage.setItem("SPOTIFY_TOKEN", access_token);
+  log("🔄 توکن تازه شد ✅");
+}
+
+// ✅ Login button
+btnLogin.addEventListener("click", () => {
+  window.location.href = `${API_BASE}/auth/login`;
+});
+
+// ✅ Create playlist button
+btnCreate.addEventListener("click", async () => {
+  const apikey = keyInput.value.trim();
+  if (!apikey) return log("کلید OpenAI رو وارد کن.");
+
+  const prompt = document.getElementById("prompt").value.trim();
+  if (!prompt) return log("پرامپت خالیه!");
+
+  const count = parseInt(document.getElementById("count").value || "5", 10);
+  const title = document.getElementById("title").value.trim() || "AI Playlist";
+
+  log("⏳ دارم از OpenAI لیست می‌گیرم...");
+
+  const sys = `You are a helpful music expert. Output ONLY a numbered list of songs in the format "Artist - Track".`;
+  const user = `Create a playlist: "${prompt}". Song count: ${count}.`;
+
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + apikey,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      temperature: 0.7,
+      messages: [
+        { role: "system", content: sys },
+        { role: "user", content: user }
+      ]
+    })
+  });
+
+  if (!resp.ok) return log("❌ خطا از OpenAI: " + resp.status);
+  const data = await resp.json();
+  const text = data.choices[0]?.message?.content || '';
+  const lines = text.split('\n')
+    .map(s => s.replace(/^\s*\d+[\).\-\:]\s*/, '').trim())
+    .filter(s => s.includes(" - "));
+
+  if (!lines.length) return log("⚠️ خروجی OpenAI نامعتبره.");
+
+  log("🎯 لیست آماده شد، دارم پلی‌لیست می‌سازم...");
+
+  // Auto-refresh access token before calling backend
+  const test = await fetch("https://api.spotify.com/v1/me", {
+    headers: { Authorization: "Bearer " + access_token }
+  });
+  if (test.status === 401) {
+    await refreshAccessToken();
   }
 
-  // ✅ Login button → redirect to Worker
-  btnLogin.addEventListener('click', () => {
-    window.location.href = `${API_BASE}/auth/login`;
+  const r2 = await fetch(`${API_BASE}/api/create-playlist`, {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer " + access_token,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      title,
+      description: `Generated by AI - ${prompt}`,
+      lines
+    })
   });
 
-  // ✅ Create playlist
-  btnCreate.addEventListener('click', async () => {
-    const token = localStorage.getItem("SPOTIFY_TOKEN");
-    if (!token) return log("❌ توکن اسپاتیفای موجود نیست. دوباره لاگین کن.");
+  const j2 = await r2.json();
+  if (!j2.ok) return log("❌ خطا از اسپاتیفای: " + j2.error);
 
-    const apikey = openaiInput.value.trim();
-    if (!apikey) return log("کلید OpenAI رو وارد کن.");
+  log(`✅ پلی‌لیست ساخته شد → <a class="link" href="${j2.playlist_url}" target="_blank">باز کردن در اسپاتیفای</a> (${j2.added} ترک)`);
+});
 
-    const prompt = document.getElementById('prompt').value.trim();
-    if (!prompt) return log("پرامپت خالیه!");
+// First run
+checkAuth();
+</script>
 
-    const count = parseInt(document.getElementById('count').value || '5', 10);
-    const title = document.getElementById('title').value.trim() || 'AI Playlist';
-
-    log("⏳ دارم از OpenAI لیست می‌گیرم...");
-
-    const sys = `You are a helpful music expert. Output ONLY a numbered list "Artist - Track". No extra text.`;
-    const user = `Create a playlist matching this prompt: "${prompt}". Number of songs: ${count}. Return only the list.`;
-
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + apikey, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "gpt-4o-mini",
-        temperature: 0.7,
-        messages: [{ role: "system", content: sys }, { role: "user", content: user }]
-      })
-    });
-
-    if (!resp.ok) return log("OpenAI error: " + resp.status);
-
-    const data = await resp.json();
-    const lines = (data.choices?.[0]?.message?.content || "")
-      .split("\n")
-      .map(s => s.replace(/^\s*\d+[\).\-\:]\s*/, "").trim())
-      .filter(s => s.includes(" - "));
-
-    if (!lines.length) return log("هیچی از OpenAI درنیومد!");
-
-    log("⏳ لیست آماده شد. دارم پلی‌لیست اسپاتیفای می‌سازم...");
-
-    const r2 = await fetch(`${API_BASE}/api/create-playlist`, {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer " + token,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ title, description: `Generated by AI: ${prompt}`, lines })
-    });
-
-    const res = await r2.json();
-    if (!res.ok) return log("Spotify error: " + res.error);
-
-    log(`✅ پلی‌لیست ساخته شد → <a class="link" href="${res.playlist_url}" target="_blank">باز کردن در اسپاتیفای</a> ( ${res.added} ترک )`);
-  });
-  </script>
 </body>
 </html>
