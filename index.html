@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PWA AI Playlist</title>
+
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#101012">
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto; background:#0d0f12; color:#e6e6e6; margin:0; display:grid; min-height:100vh; place-items:center;}
+    .card{width:min(720px,94vw); background:#121419; border:1px solid #222633; border-radius:16px; padding:20px; box-shadow:0 8px 30px rgba(0,0,0,.3)}
+    .row{display:flex; gap:12px; flex-wrap:wrap}
+    input, textarea, button{width:100%; background:#0c0e13; color:#e6e6e6; border:1px solid #2a2f3d; border-radius:12px; padding:12px; font-size:16px}
+    button{cursor:pointer; background:#2d6cdf; border:none}
+    button:disabled{opacity:.6; cursor:not-allowed}
+    small{opacity:.8}
+    .pill{display:inline-block; padding:6px 10px; border:1px dashed #2a2f3d; border-radius:999px; font-size:12px; margin-top:6px}
+    .footer{opacity:.6; font-size:12px; margin-top:8px}
+    .link{color:#8ab4ff}
+    .grid{display:grid; gap:12px}
+    label{font-size:12px; opacity:.8}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2 style="margin-top:0">🎵 AI → Spotify Playlist</h2>
+    <div class="grid">
+      <div>
+        <label>کلید OpenAI (فقط بار اول، در مرورگر شما ذخیره می‌شود)</label>
+        <input id="openaiKey" type="password" placeholder="sk-..." />
+        <div><span class="pill">ذخیره در localStorage</span></div>
+      </div>
+      <div>
+        <label>پرامپت پلی‌لیست</label>
+        <textarea id="prompt" rows="4" placeholder="مثلاً: ۸ ترک هیپ‌هاپ با تم انرژی صبحگاهی، مثل Kendrick + J. Cole، از ۲۰۱8 به بعد"></textarea>
+      </div>
+      <div class="row">
+        <div style="flex:1">
+          <label>تعداد ترک (پیش‌فرض 5)</label>
+          <input id="count" type="number" min="1" max="100" placeholder="5" />
+        </div>
+        <div style="flex:2">
+          <label>عنوان پلی‌لیست</label>
+          <input id="title" type="text" placeholder="AI Playlist"/>
+        </div>
+      </div>
+      <button id="btnLogin">۱) اتصال به اسپاتیفای</button>
+      <button id="btnCreate" disabled>۲) ساخت پلی‌لیست</button>
+      <div id="out" class="footer"></div>
+    </div>
+    <div class="footer">PWA: این صفحه را به صفحه‌اصلی (Add to Home) اضافه کن، روی اندروید مثل اپ اجرا می‌شود.</div>
+  </div>
+
+  <script>
+    // ثبت سرویس‌ورکر برای PWA
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js');
+    }
+
+    // بازیابی/ذخیره کلید OpenAI
+    const keyInput = document.getElementById('openaiKey');
+    const savedKey = localStorage.getItem('OPENAI_KEY');
+    if (savedKey) keyInput.value = atob(savedKey);
+
+    keyInput.addEventListener('change', () => {
+      localStorage.setItem('OPENAI_KEY', btoa(keyInput.value.trim()));
+    });
+
+    const out = document.getElementById('out');
+    function log(msg) { out.innerHTML = msg; }
+
+    // اگر از /#spotify=ok اومدیم، وضعیت رو چک کن
+    async function checkAuth() {
+      const r = await fetch('http://127.0.0.1:3000/auth/status');
+      const j = await r.json();
+      if (j.authed) {
+        document.getElementById('btnCreate').disabled = false;
+        log(`متصل به اسپاتیفای به عنوان <b>${j.me?.display_name || j.me?.id}</b>. آماده‌ای!`);
+      } else {
+        log('به اسپاتیفای وصل نیستی.');
+      }
+    }
+    checkAuth();
+
+    // دکمه ورود اسپاتیفای
+    document.getElementById('btnLogin').addEventListener('click', () => {
+      window.location.href = 'http://127.0.0.1:3000/auth/login';
+    });
+
+    // دکمه ساخت پلی‌لیست
+    document.getElementById('btnCreate').addEventListener('click', async () => {
+      const apikey = keyInput.value.trim();
+      if (!apikey) return log('کلید OpenAI رو وارد کن.');
+
+      const prompt = document.getElementById('prompt').value.trim();
+      if (!prompt) return log('پرامپت خالیه!');
+      const count = parseInt(document.getElementById('count').value || '5', 10);
+      const title = document.getElementById('title').value.trim() || 'AI Playlist';
+
+      log('دارم از OpenAI لیست می‌گیرم...');
+
+      // درخواست به Chat Completions: لیستی با فرمت «Artist - Track» خروجی بده
+      const sys = `You are a helpful music expert. Output ONLY a numbered list of songs in the format "Artist - Track". No extra text.`;
+      const user = `Create a playlist matching this prompt: "${prompt}". Number of songs: ${count}. Return only the list.`;
+
+      const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + apikey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          temperature: 0.7,
+          messages: [
+            { role: 'system', content: sys },
+            { role: 'user', content: user }
+          ]
+        })
+      });
+
+      if (!resp.ok) {
+        return log('OpenAI error: ' + resp.status);
+      }
+      const data = await resp.json();
+      const text = data.choices?.[0]?.message?.content || '';
+      // استخراج خطوط «Artist - Track»
+      const lines = text.split('\n')
+        .map(s => s.replace(/^\s*\d+[\).\-\:]\s*/, '').trim()) // حذف شماره‌گذاری
+        .filter(s => s && s.includes(' - '));
+
+      if (!lines.length) return log('هیچی از OpenAI درنیومد! پرامپتت رو واضح‌تر کن.');
+
+      log('لیست آماده شد. دارم پلی‌لیست اسپاتیفای می‌سازم...');
+
+      // درخواست به بک‌اند برای ساخت پلی‌لیست
+      const r2 = await fetch('http://127.0.0.1:3000/api/create-playlist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description: `Generated by AI from prompt: ${prompt}`,
+          lines
+        })
+      });
+      const j2 = await r2.json();
+      if (!r2.ok || !j2.ok) {
+        return log('Spotify error: ' + (j2.error || 'failed'));
+      }
+      log(`پلی‌لیست ساخته شد ✅ → <a class="link" href="${j2.playlist_url}" target="_blank">باز کردن در اسپاتیفای</a> ( ${j2.added} ترک )`);
+    });
+
+    // اگر از لاگین برگشتیم
+    if (window.location.hash.includes('spotify=ok')) {
+      history.replaceState({}, document.title, '/');
+      checkAuth();
+    }
+  </script>
+</body>
+</html>
